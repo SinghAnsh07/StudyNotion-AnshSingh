@@ -3,41 +3,53 @@ require("dotenv").config();
 const User = require("../models/User");
 
 //auth
+//auth
 exports.auth = async (req, res, next) => {
-    try{
-        //extract token
-        const token = req.cookies.token 
-                        || req.body.token 
-                        || req.header("Authorisation").replace("Bearer ", "");
-        //if token missing, then return response
-        if(!token) {
+    try {
+        console.log("BEFORE TOKEN EXTRACTION");
+
+        let token = null;
+
+        if (req.cookies && req.cookies.token) {
+            token = req.cookies.token;
+        } else if (req.body && req.body.token) {
+            token = req.body.token;
+        } else if (
+            req.headers.authorization &&
+            req.headers.authorization.startsWith("Bearer ")
+        ) {
+            token = req.headers.authorization.split(" ")[1];
+        }
+
+        console.log("Extracted token:", token);
+
+        if (!token) {
             return res.status(401).json({
-                success:false,
-                message:'TOken is missing',
+                success: false,
+                message: "Token is missing",
             });
         }
-        //verify the token
-        try{
-            const decode =  jwt.verify(token, process.env.JWT_SECRET);
-            console.log(decode);
+
+        try {
+            const decode = jwt.verify(token, process.env.JWT_SECRET);
+            console.log("Decoded token:", decode);
             req.user = decode;
-        }
-        catch(err) {
-            //verification - issue
+        } catch (err) {
             return res.status(401).json({
-                success:false,
-                message:'token is invalid',
+                success: false,
+                message: "Token is invalid",
             });
         }
+
         next();
-    }
-    catch(error) {  
+    } catch (error) {
         return res.status(401).json({
-            success:false,
-            message:'Something went wrong while validating the token',
+            success: false,
+            message: "Something went wrong while validating the token",
         });
     }
-}
+  };
+
 //isStudent
 exports.isStudent = async (req, res, next) => {
  try{
@@ -80,7 +92,8 @@ exports.isInstructor = async (req, res, next) => {
 
 //isAdmin
 exports.isAdmin = async (req, res, next) => {
-    try{
+    try{    
+           console.log("Printing AccountType ", req.user.accountType);
            if(req.user.accountType !== "Admin") {
                return res.status(401).json({
                    success:false,

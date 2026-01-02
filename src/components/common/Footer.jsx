@@ -158,11 +158,10 @@ const Footer = () => {
               return (
                 <div
                   key={i}
-                  className={` ${
-                    BottomFooter.length - 1 === i
+                  className={` ${BottomFooter.length - 1 === i
                       ? ""
                       : "border-r border-richblack-700 cursor-pointer hover:text-richblack-50 transition-all duration-200"
-                  } px-3 `}
+                    } px-3 `}
                 >
                   <Link to={ele.split(" ").join("-").toLocaleLowerCase()}>
                     {ele}
@@ -172,7 +171,7 @@ const Footer = () => {
             })}
           </div>
 
-          <div className="text-center">Made with ❤️ Ansh Singh © 2025 StudyNotion</div>
+          <div className="text-center">Made with ❤️ by ANSH SINGH © 2024 ANSH SINGH</div>
         </div>
       </div>
     </div>
