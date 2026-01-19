@@ -12,7 +12,7 @@
 
 **A modern, responsive online learning platform designed to deliver an intuitive and seamless experience for students, educators, and administrators.**
 
-[🚀 Live Demo](#) • [📖 Documentation](#) • [🐛 Report Bug](https://github.com/SinghAnsh07/StudyNotion-AnshSingh/issues) • [✨ Request Feature](https://github.com/SinghAnsh07/StudyNotion-AnshSingh/issues)
+[🐛 Report Bug](https://github.com/SinghAnsh07/StudyNotion-AnshSingh/issues) • [✨ Request Feature](https://github.com/SinghAnsh07/StudyNotion-AnshSingh/issues)
 
 </div>
 
@@ -184,7 +184,7 @@ Contributions are what make the open-source community such an amazing place to l
 
 ## 📄 License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+Distributed under the MIT License.
 
 ---
 
@@ -193,7 +193,7 @@ Distributed under the MIT License. See `LICENSE` for more information.
 **Ansh Singh**
 
 - GitHub: [@SinghAnsh07](https://github.com/SinghAnsh07)
-- LinkedIn: [Connect with me](https://linkedin.com/in/ansh-singh)
+- LinkedIn: [Connect with me](https://www.linkedin.com/in/anshsingh07/)
 
 ---
 
