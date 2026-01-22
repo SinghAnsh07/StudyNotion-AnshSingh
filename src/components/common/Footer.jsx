@@ -159,8 +159,8 @@ const Footer = () => {
                 <div
                   key={i}
                   className={` ${BottomFooter.length - 1 === i
-                      ? ""
-                      : "border-r border-richblack-700 cursor-pointer hover:text-richblack-50 transition-all duration-200"
+                    ? ""
+                    : "border-r border-richblack-700 cursor-pointer hover:text-richblack-50 transition-all duration-200"
                     } px-3 `}
                 >
                   <Link to={ele.split(" ").join("-").toLocaleLowerCase()}>
@@ -171,7 +171,7 @@ const Footer = () => {
             })}
           </div>
 
-          <div className="text-center">Made with ❤️ by ANSH SINGH © 2024 ANSH SINGH</div>
+          {/* <div className="text-center">Made with ❤️ by ANSH SINGH © 2024 ANSH SINGH</div> */}
         </div>
       </div>
     </div>
