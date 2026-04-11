@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
-require("dotenv").config({ path: "../.env" });
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, "../.env") });
 
-// Import Category model
 const Category = require("../models/Category");
 
 const categories = [
@@ -58,39 +58,30 @@ const categories = [
 const seedCategories = async () => {
     try {
         console.log("🔌 Connecting to database...");
+        console.log("URL:", process.env.MONGODB_URL ? "Found" : "NOT FOUND - check .env");
 
-        // Connect to MongoDB
-        await mongoose.connect(process.env.MONGODB_URL, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
-        });
+        await mongoose.connect(process.env.MONGODB_URL);
 
         console.log("✅ Connected to database successfully!");
         console.log("📚 Creating categories...\n");
 
-        // Insert all categories
         const createdCategories = await Category.insertMany(categories);
 
         console.log(`✨ Successfully created ${createdCategories.length} categories:\n`);
-
         createdCategories.forEach((category, index) => {
             console.log(`   ${index + 1}. ${category.name}`);
-            console.log(`      📝 ${category.description}`);
             console.log(`      🆔 ID: ${category._id}\n`);
         });
 
-        console.log("🎉 Categories seeded successfully!\n");
-
-        // Close the connection
+        console.log("🎉 Categories seeded successfully!");
         await mongoose.connection.close();
         console.log("🔌 Database connection closed.");
         process.exit(0);
 
     } catch (error) {
-        console.error("❌ Error seeding categories:", error);
+        console.error("❌ Error seeding categories:", error.message);
         process.exit(1);
     }
 };
 
-// Run the seeding
 seedCategories();
