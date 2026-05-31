@@ -9,7 +9,7 @@ const Category = require("../models/Category");
 const Section = require("../models/Section");
 const SubSection = require("../models/SubSection");
 const CourseProgress = require("../models/CourseProgress");
-const RatingAndReview = require("../models/RatingAndRaview");
+const RatingAndReview = require("../models/RatingAndReview");
 const OTP = require("../models/OTP");
 
 const clearDatabase = async () => {

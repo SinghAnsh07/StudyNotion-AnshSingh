@@ -1,6 +1,28 @@
-const Section = require("../models/Section");
-const Course = require("../models/Course");
-const SubSection = require("../models/SubSection");
+const prisma = require("../config/prisma");
+
+// Helper to format course to match Mongoose populated structure
+const formatCourse = (course) => {
+	if (!course) return null;
+	const formatted = {
+		...course,
+		_id: course.id, // Mongoose compatibility
+		courseContent: (course.sections || []).map(s => {
+			const formattedSection = {
+				...s,
+				_id: s.id, // Mongoose compatibility
+				subSection: (s.subSections || []).map(sub => ({
+					...sub,
+					_id: sub.id // Mongoose compatibility
+				}))
+			};
+			delete formattedSection.subSections;
+			return formattedSection;
+		})
+	};
+	delete formatted.sections;
+	return formatted;
+};
+
 // CREATE a new section
 exports.createSection = async (req, res) => {
 	try {
@@ -15,35 +37,33 @@ exports.createSection = async (req, res) => {
 			});
 		}
 
-		// Create a new section with the given name
-		const newSection = await Section.create({ sectionName });
+		// Create a new section
+		await prisma.section.create({
+			data: {
+				sectionName,
+				courseId,
+			}
+		});
 
-		// Add the new section to the course's content array
-		const updatedCourse = await Course.findByIdAndUpdate(
-			courseId,
-			{
-				$push: {
-					courseContent: newSection._id,
-				},
-			},
-			{ new: true }
-		)
-			.populate({
-				path: "courseContent",
-				populate: {
-					path: "subSection",
-				},
-			})
-			.exec();
+		// Fetch the updated course with sections and subSections
+		const updatedCourse = await prisma.course.findUnique({
+			where: { id: courseId },
+			include: {
+				sections: {
+					include: {
+						subSections: true
+					}
+				}
+			}
+		});
 
 		// Return the updated course object in the response
 		res.status(200).json({
 			success: true,
 			message: "Section created successfully",
-			updatedCourse,
+			updatedCourse: formatCourse(updatedCourse),
 		});
 	} catch (error) {
-		// Handle errors
 		res.status(500).json({
 			success: false,
 			message: "Internal server error",
@@ -55,32 +75,35 @@ exports.createSection = async (req, res) => {
 // UPDATE a section
 exports.updateSection = async (req, res) => {
 	try {
-		const { sectionName, sectionId,courseId } = req.body;
-		const section = await Section.findByIdAndUpdate(
-			sectionId,
-			{ sectionName },
-			{ new: true }
-		);
+		const { sectionName, sectionId, courseId } = req.body;
+		
+		const section = await prisma.section.update({
+			where: { id: sectionId },
+			data: { sectionName }
+		});
 
-		const course = await Course.findById(courseId)
-		.populate({
-			path:"courseContent",
-			populate:{
-				path:"subSection",
-			},
-		})
-		.exec();
+		const course = await prisma.course.findUnique({
+			where: { id: courseId },
+			include: {
+				sections: {
+					include: {
+						subSections: true
+					}
+				}
+			}
+		});
 
 		res.status(200).json({
 			success: true,
 			message: section,
-			data:course,
+			data: formatCourse(course),
 		});
 	} catch (error) {
 		console.error("Error updating section:", error);
 		res.status(500).json({
 			success: false,
 			message: "Internal server error",
+			error: error.message,
 		});
 	}
 };
@@ -88,46 +111,47 @@ exports.updateSection = async (req, res) => {
 // DELETE a section
 exports.deleteSection = async (req, res) => {
 	try {
+		const { sectionId, courseId } = req.body;
 
-		const { sectionId, courseId }  = req.body;
-		await Course.findByIdAndUpdate(courseId, {
-			$pull: {
-				courseContent: sectionId,
-			}
-		})
-		const section = await Section.findById(sectionId);
-		console.log(sectionId, courseId);
-		if(!section) {
+		const section = await prisma.section.findUnique({
+			where: { id: sectionId }
+		});
+
+		if (!section) {
 			return res.status(404).json({
-				success:false,
-				message:"Section not Found",
-			})
+				success: false,
+				message: "Section not Found",
+			});
 		}
 
-		//delete sub section
-		await SubSection.deleteMany({_id: {$in: section.subSection}});
+		// Delete section (cascade delete will handle subSections in PostgreSQL)
+		await prisma.section.delete({
+			where: { id: sectionId }
+		});
 
-		await Section.findByIdAndDelete(sectionId);
-
-		//find the updated course and return 
-		const course = await Course.findById(courseId).populate({
-			path:"courseContent",
-			populate: {
-				path: "subSection"
+		// Find the updated course and return
+		const course = await prisma.course.findUnique({
+			where: { id: courseId },
+			include: {
+				sections: {
+					include: {
+						subSections: true
+					}
+				}
 			}
-		})
-		.exec();
+		});
 
 		res.status(200).json({
-			success:true,
-			message:"Section deleted",
-			data:course
+			success: true,
+			message: "Section deleted",
+			data: formatCourse(course)
 		});
 	} catch (error) {
 		console.error("Error deleting section:", error);
 		res.status(500).json({
 			success: false,
 			message: "Internal server error",
+			error: error.message,
 		});
 	}
-};   
+};

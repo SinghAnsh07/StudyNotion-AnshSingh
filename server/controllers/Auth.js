@@ -1,15 +1,28 @@
 const bcrypt = require("bcrypt");
-const User = require("../models/User");
-const OTP = require("../models/OTP");
+const prisma = require("../config/prisma");
 const jwt = require("jsonwebtoken");
 const otpGenerator = require("otp-generator");
 const mailSender = require("../utils/mailSender");
 const { passwordUpdated } = require("../mail/templates/passwordUpdate");
-const Profile = require("../models/Profile");
+const emailTemplate = require("../mail/templates/emailVerificationTemplate");
 require("dotenv").config();
 
-// Signup Controller for Registering USers
+// Send verification email function helper (since Prisma schema doesn't support pre-save hooks)
+async function sendVerificationEmail(email, otp) {
+	try {
+		const mailResponse = await mailSender(
+			email,
+			"Verification Email",
+			emailTemplate(otp)
+		);
+		console.log("Email sent successfully: ", mailResponse.response);
+	} catch (error) {
+		console.log("Error occurred while sending email: ", error);
+		throw error;
+	}
+}
 
+// Signup Controller for Registering Users
 exports.signup = async (req, res) => {
 	try {
 		// Destructure fields from the request body
@@ -23,6 +36,7 @@ exports.signup = async (req, res) => {
 			contactNumber,
 			otp,
 		} = req.body;
+
 		// Check if All Details are there or not
 		if (
 			!firstName ||
@@ -37,6 +51,7 @@ exports.signup = async (req, res) => {
 				message: "All Fields are required",
 			});
 		}
+
 		// Check if password and confirm password match
 		if (password !== confirmPassword) {
 			return res.status(400).json({
@@ -47,7 +62,9 @@ exports.signup = async (req, res) => {
 		}
 
 		// Check if user already exists
-		const existingUser = await User.findOne({ email });
+		const existingUser = await prisma.user.findUnique({
+			where: { email }
+		});
 		if (existingUser) {
 			return res.status(400).json({
 				success: false,
@@ -56,15 +73,31 @@ exports.signup = async (req, res) => {
 		}
 
 		// Find the most recent OTP for the email
-		const response = await OTP.find({ email }).sort({ createdAt: -1 }).limit(1);
-		console.log(response);
+		const response = await prisma.oTP.findMany({
+			where: { email },
+			orderBy: { createdAt: "desc" },
+			take: 1
+		});
+
 		if (response.length === 0) {
 			// OTP not found for the email
 			return res.status(400).json({
 				success: false,
 				message: "The OTP is not valid",
 			});
-		} else if (otp !== response[0].otp) {
+		}
+
+		const otpRecord = response[0];
+		// Verify if OTP was created within the last 5 minutes
+		const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+		if (otpRecord.createdAt < fiveMinutesAgo) {
+			return res.status(400).json({
+				success: false,
+				message: "The OTP has expired",
+			});
+		}
+
+		if (otp !== otpRecord.otp) {
 			// Invalid OTP
 			return res.status(400).json({
 				success: false,
@@ -75,32 +108,48 @@ exports.signup = async (req, res) => {
 		// Hash the password
 		const hashedPassword = await bcrypt.hash(password, 10);
 
-		// Create the user
-		let approved = "";
-		approved === "Instructor" ? (approved = false) : (approved = true);
+		// Determine approval status
+		const approved = accountType === "Instructor" ? false : true;
 
-		// Create the Additional Profile For User
-		const profileDetails = await Profile.create({
-			gender: null,
-			dateOfBirth: null,
-			about: null,
-			contactNumber: null,
+		// Create user with nested Profile creation in a single transaction
+		const user = await prisma.user.create({
+			data: {
+				firstName,
+				lastName,
+				email,
+				password: hashedPassword,
+				accountType: accountType,
+				approved: approved,
+				image: `https://api.dicebear.com/5.x/initials/svg?seed=${firstName} ${lastName}`,
+				profile: {
+					create: {
+						gender: null,
+						dateOfBirth: null,
+						about: null,
+						contactNumber: contactNumber || null,
+					}
+				}
+			},
+			include: {
+				profile: true
+			}
 		});
-		const user = await User.create({
-			firstName,
-			lastName,
-			email,
-			contactNumber,
-			password: hashedPassword,
-			accountType: accountType,
-			approved: approved,
-			additionalDetails: profileDetails._id,
-			image: `https://api.dicebear.com/5.x/initials/svg?seed=${firstName} ${lastName}`,
-		});
+
+		// Map to the format frontend expects (using additionalDetails)
+		const formattedUser = {
+			...user,
+			_id: user.id, // Mongoose compatibility
+			additionalDetails: user.profile ? {
+				...user.profile,
+				_id: user.profile.id // Mongoose compatibility
+			} : null
+		};
+		delete formattedUser.profile;
+		delete formattedUser.password;
 
 		return res.status(200).json({
 			success: true,
-			user,
+			user: formattedUser,
 			message: "User registered successfully",
 		});
 	} catch (error) {
@@ -120,7 +169,6 @@ exports.login = async (req, res) => {
 
 		// Check if email or password is missing
 		if (!email || !password) {
-			// Return 400 Bad Request status code with error message
 			return res.status(400).json({
 				success: false,
 				message: `Please Fill up All the Required Fields`,
@@ -128,11 +176,13 @@ exports.login = async (req, res) => {
 		}
 
 		// Find user with provided email
-		const user = await User.findOne({ email }).populate("additionalDetails");
+		const user = await prisma.user.findUnique({
+			where: { email },
+			include: { profile: true }
+		});
 
 		// If user not found with provided email
 		if (!user) {
-			// Return 401 Unauthorized status code with error message
 			return res.status(401).json({
 				success: false,
 				message: `User is not Registered with Us Please SignUp to Continue`,
@@ -142,16 +192,26 @@ exports.login = async (req, res) => {
 		// Generate JWT token and Compare Password
 		if (await bcrypt.compare(password, user.password)) {
 			const token = jwt.sign(
-				{ email: user.email, id: user._id, accountType: user.accountType },
+				{ email: user.email, id: user.id, accountType: user.accountType },
 				process.env.JWT_SECRET,
 				{
 					expiresIn: "24h",
 				}
 			);
 
-			// Save token to user document in database
-			user.token = token;
-			user.password = undefined;
+			// Format response to include token and map profile -> additionalDetails
+			const userResponse = {
+				...user,
+				_id: user.id, // Mongoose compatibility
+				token,
+				additionalDetails: user.profile ? {
+					...user.profile,
+					_id: user.profile.id // Mongoose compatibility
+				} : null
+			};
+			delete userResponse.profile;
+			delete userResponse.password;
+
 			// Set cookie for token and return success response
 			const options = {
 				expires: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
@@ -160,7 +220,7 @@ exports.login = async (req, res) => {
 			res.cookie("token", token, options).status(200).json({
 				success: true,
 				token,
-				user,
+				user: userResponse,
 				message: `User Login Success`,
 			});
 		} else {
@@ -171,48 +231,58 @@ exports.login = async (req, res) => {
 		}
 	} catch (error) {
 		console.error(error);
-		// Return 500 Internal Server Error status code with error message
 		return res.status(500).json({
 			success: false,
 			message: `Login Failure Please Try Again`,
 		});
 	}
 };
+
 // Send OTP For Email Verification
 exports.sendotp = async (req, res) => {
 	try {
 		const { email } = req.body;
 
 		// Check if user is already present
-		// Find user with provided email
-		const checkUserPresent = await User.findOne({ email });
-		// to be used in case of signup
+		const checkUserPresent = await prisma.user.findUnique({
+			where: { email }
+		});
 
-		// If user found with provided email
 		if (checkUserPresent) {
-			// Return 401 Unauthorized status code with error message
 			return res.status(401).json({
 				success: false,
 				message: `User is Already Registered`,
 			});
 		}
 
-		var otp = otpGenerator.generate(6, {
+		let otp = otpGenerator.generate(6, {
 			upperCaseAlphabets: false,
 			lowerCaseAlphabets: false,
 			specialChars: false,
 		});
-		const result = await OTP.findOne({ otp: otp });
-		console.log("Result is Generate OTP Func");
-		console.log("OTP", otp);
-		console.log("Result", result);
+
+		let result = await prisma.oTP.findFirst({
+			where: { otp: otp }
+		});
+
 		while (result) {
 			otp = otpGenerator.generate(6, {
 				upperCaseAlphabets: false,
+				lowerCaseAlphabets: false,
+				specialChars: false,
+			});
+			result = await prisma.oTP.findFirst({
+				where: { otp: otp }
 			});
 		}
-		const otpPayload = { email, otp };
-		const otpBody = await OTP.create(otpPayload);
+
+		// Explicitly send email verification before creating the db record
+		await sendVerificationEmail(email, otp);
+
+		const otpBody = await prisma.oTP.create({
+			data: { email, otp }
+		});
+
 		console.log("OTP Body", otpBody);
 		res.status(200).json({
 			success: true,
@@ -228,10 +298,12 @@ exports.sendotp = async (req, res) => {
 // Controller for Changing Password
 exports.changePassword = async (req, res) => {
 	try {
-		// Get user data from req.user
-		const userDetails = await User.findById(req.user.id);
+		// Get user data using req.user.id
+		const userDetails = await prisma.user.findUnique({
+			where: { id: req.user.id }
+		});
 
-		// Get old password, new password, and confirm new password from req.body
+		// Get passwords from request body
 		const { oldPassword, newPassword, confirmNewPassword } = req.body;
 
 		// Validate old password
@@ -240,7 +312,6 @@ exports.changePassword = async (req, res) => {
 			userDetails.password
 		);
 		if (!isPasswordMatch) {
-			// If old password does not match, return a 401 (Unauthorized) error
 			return res
 				.status(401)
 				.json({ success: false, message: "The password is incorrect" });
@@ -248,7 +319,6 @@ exports.changePassword = async (req, res) => {
 
 		// Match new password and confirm new password
 		if (newPassword !== confirmNewPassword) {
-			// If new password and confirm new password do not match, return a 400 (Bad Request) error
 			return res.status(400).json({
 				success: false,
 				message: "The password and confirm password does not match",
@@ -257,11 +327,10 @@ exports.changePassword = async (req, res) => {
 
 		// Update password
 		const encryptedPassword = await bcrypt.hash(newPassword, 10);
-		const updatedUserDetails = await User.findByIdAndUpdate(
-			req.user.id,
-			{ password: encryptedPassword },
-			{ new: true }
-		);
+		const updatedUserDetails = await prisma.user.update({
+			where: { id: req.user.id },
+			data: { password: encryptedPassword }
+		});
 
 		// Send notification email
 		try {
@@ -274,7 +343,6 @@ exports.changePassword = async (req, res) => {
 			);
 			console.log("Email sent successfully:", emailResponse.response);
 		} catch (error) {
-			// If there's an error sending the email, log the error and return a 500 (Internal Server Error) error
 			console.error("Error occurred while sending email:", error);
 			return res.status(500).json({
 				success: false,
@@ -283,12 +351,10 @@ exports.changePassword = async (req, res) => {
 			});
 		}
 
-		// Return success response
 		return res
 			.status(200)
 			.json({ success: true, message: "Password updated successfully" });
 	} catch (error) {
-		// If there's an error updating the password, log the error and return a 500 (Internal Server Error) error
 		console.error("Error occurred while updating password:", error);
 		return res.status(500).json({
 			success: false,

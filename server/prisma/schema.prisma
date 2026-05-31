@@ -1,0 +1,149 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum AccountType {
+  Admin
+  Student
+  Instructor
+}
+
+enum CourseStatus {
+  Draft
+  Published
+}
+
+// ─── USER & PROFILE ──────────────────────────────────────────
+model User {
+  id                   String            @id @default(uuid())
+  firstName            String
+  lastName             String
+  email                String            @unique
+  password             String
+  accountType          AccountType
+  active               Boolean           @default(true)
+  approved             Boolean           @default(true)
+  image                String
+  token                String?
+  resetPasswordExpires DateTime?
+  
+  // 1:1 relation to profile
+  profile              Profile?
+  
+  // Relations to courses
+  createdCourses       Course[]          @relation("InstructorCourses")
+  enrolledCourses      Course[]          @relation("EnrolledStudents")
+  
+  courseProgress       CourseProgress[]
+  ratingsAndReviews    RatingAndReview[]
+
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+}
+
+model Profile {
+  id            String   @id @default(uuid())
+  gender        String?
+  dateOfBirth   String?
+  about         String?
+  contactNumber String?
+  
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── COURSE STRUCTURE ─────────────────────────────────────────
+model Course {
+  id                String            @id @default(uuid())
+  courseName        String
+  courseDescription String?
+  whatYouWillLearn  String?
+  price             Float?
+  thumbnail         String?
+  tag               String[]          // PostgreSQL supports native text arrays
+  instructions      String[]          // PostgreSQL supports native text arrays
+  status            CourseStatus      @default(Draft)
+  
+  instructorId      String
+  instructor        User              @relation("InstructorCourses", fields: [instructorId], references: [id])
+  
+  categoryId        String?
+  category          Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  
+  sections          Section[]
+  ratingsAndReviews RatingAndReview[]
+  enrolledStudents  User[]            @relation("EnrolledStudents")
+  courseProgress    CourseProgress[]
+
+  createdAt         DateTime          @default(now())
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  courses     Course[]
+}
+
+model Section {
+  id          String       @id @default(uuid())
+  sectionName String
+  courseId    String
+  course      Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  subSections SubSection[]
+}
+
+model SubSection {
+  id           String           @id @default(uuid())
+  title        String?
+  timeDuration String?
+  description  String?
+  videoUrl     String?          // Cloudinary URL remains unchanged
+  
+  sectionId    String
+  section      Section          @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  
+  completedBy  CourseProgress[] @relation("CompletedVideos")
+}
+
+// ─── PROGRESS & REVIEWS ───────────────────────────────────────
+model CourseProgress {
+  id              String       @id @default(uuid())
+  courseId        String
+  course          Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  userId          String
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  completedVideos SubSection[] @relation("CompletedVideos")
+
+  @@unique([courseId, userId])
+}
+
+model RatingAndReview {
+  id       String @id @default(uuid())
+  rating   Int
+  review   String
+  
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  courseId String
+  course   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+}
+
+// ─── OTP VERIFICATION ──────────────────────────────────────────
+model OTP {
+  id        String   @id @default(uuid())
+  email     String
+  otp       String
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
