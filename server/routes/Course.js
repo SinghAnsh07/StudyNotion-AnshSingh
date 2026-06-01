@@ -28,7 +28,7 @@ const {
   createSection,
   updateSection,
   deleteSection,
-} = require("../controllers/Section")
+} = require("../controllers/section")
 
 // Sub-Sections Controllers Import
 const {
