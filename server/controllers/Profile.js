@@ -161,6 +161,7 @@ exports.getEnrolledCourses = async (req, res) => {
 			include: {
 				enrolledCourses: {
 					include: {
+						ratingsAndReviews: true,
 						sections: {
 							include: {
 								subSections: true
@@ -232,11 +233,13 @@ exports.getEnrolledCourses = async (req, res) => {
 			const courseObj = {
 				...course,
 				_id: course.id, // Include _id fallback for frontend Swiper / course display
+				ratingAndReviews: course.ratingsAndReviews || [],
 				courseContent,
 				totalDuration,
 				progressPercentage
 			};
 			delete courseObj.sections;
+			delete courseObj.ratingsAndReviews;
 			formattedCourses.push(courseObj);
 		}
 

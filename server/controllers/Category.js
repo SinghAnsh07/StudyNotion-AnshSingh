@@ -7,12 +7,15 @@ function getRandomInt(max) {
 // Helper to format course for Mongoose compatibility in Catalog views
 const formatCatalogCourse = (course) => {
 	if (!course) return null;
-	return {
+	const formatted = {
 		...course,
 		_id: course.id, // Mongoose compatibility
+		ratingAndReviews: course.ratingsAndReviews || [],
 		studentsEnrolled: (course.enrolledStudents || []).map(std => std.id || std),
 		studentsEnroled: (course.enrolledStudents || []).map(std => std.id || std)
 	};
+	delete formatted.ratingsAndReviews;
+	return formatted;
 };
 
 // Helper to format category for Mongoose compatibility
@@ -119,6 +122,7 @@ exports.categoryPageDetails = async (req, res) => {
 						include: {
 							instructor: true,
 							enrolledStudents: true,
+							ratingsAndReviews: true,
 						}
 					}
 				}
@@ -131,6 +135,7 @@ exports.categoryPageDetails = async (req, res) => {
 			include: {
 				instructor: true,
 				enrolledStudents: true,
+				ratingsAndReviews: true,
 			}
 		});
 

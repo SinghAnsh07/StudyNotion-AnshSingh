@@ -23,6 +23,7 @@ const formatCourseDetails = (course) => {
 	const formatted = {
 		...course,
 		_id: course.id, // Mongoose compatibility
+		ratingAndReviews: course.ratingsAndReviews || [],
 		instructor: course.instructor ? {
 			...course.instructor,
 			_id: course.instructor.id, // Mongoose compatibility
@@ -52,6 +53,7 @@ const formatCourseDetails = (course) => {
 	}
 	delete formatted.sections;
 	delete formatted.enrolledStudents;
+	delete formatted.ratingsAndReviews;
 	return formatted;
 };
 
@@ -251,7 +253,7 @@ exports.getAllCourses = async (req, res) => {
 
 		return res.status(200).json({
 			success: true,
-			data: allCourses,
+			data: allCourses.map(c => formatCourseDetails(c)),
 		});
 	} catch (error) {
 		console.log(error);
