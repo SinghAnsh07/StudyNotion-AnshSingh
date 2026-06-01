@@ -21,7 +21,6 @@ prisma.$connect()
 	.then(() => console.log("PostgreSQL Connected Successfully"))
 	.catch((error) => {
 		console.error("PostgreSQL Connection Failed:", error);
-		process.exit(1);
 	});
 //middlewares
 app.use(express.json());
@@ -60,5 +59,7 @@ app.get("/", (req, res) => {
 
 app.listen(PORT, () => {
 	console.log(`App is running at ${PORT}`)
-})
+});
+
+module.exports = app;
 
