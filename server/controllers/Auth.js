@@ -1,4 +1,4 @@
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 const prisma = require("../config/prisma");
 const jwt = require("jsonwebtoken");
 const otpGenerator = require("otp-generator");
