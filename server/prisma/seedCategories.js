@@ -1,8 +1,13 @@
-const mongoose = require("mongoose");
+const { PrismaClient } = require("@prisma/client");
+const { Pool } = require("pg");
+const { PrismaPg } = require("@prisma/adapter-pg");
 const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, "../.env") });
 
-const Category = require("../models/Category");
+// Setup the pool connection using DATABASE_URL from .env
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
 
 const categories = [
     {
@@ -57,29 +62,34 @@ const categories = [
 
 const seedCategories = async () => {
     try {
-        console.log("🔌 Connecting to database...");
-        console.log("URL:", process.env.MONGODB_URL ? "Found" : "NOT FOUND - check .env");
+        console.log("🔌 Connecting to PostgreSQL via Prisma Adapter...");
+        console.log("URL Status:", process.env.DATABASE_URL ? "Found" : "NOT FOUND - check .env for DATABASE_URL");
 
-        await mongoose.connect(process.env.MONGODB_URL);
-
-        console.log("✅ Connected to database successfully!");
         console.log("📚 Creating categories...\n");
 
-        const createdCategories = await Category.insertMany(categories);
+        const result = await prisma.category.createMany({
+            data: categories,
+            skipDuplicates: true, 
+        });
 
-        console.log(`✨ Successfully created ${createdCategories.length} categories:\n`);
-        createdCategories.forEach((category, index) => {
+        console.log(`✨ Successfully processed category inserts. (Count added/checked: ${result.count})\n`);
+
+        const allCategories = await prisma.category.findMany();
+        allCategories.forEach((category, index) => {
             console.log(`   ${index + 1}. ${category.name}`);
-            console.log(`      🆔 ID: ${category._id}\n`);
+            console.log(`      🆔 ID: ${category.id}\n`);
         });
 
         console.log("🎉 Categories seeded successfully!");
-        await mongoose.connection.close();
+        await prisma.$disconnect();
+        await pool.end();
         console.log("🔌 Database connection closed.");
         process.exit(0);
 
     } catch (error) {
         console.error("❌ Error seeding categories:", error.message);
+        await prisma.$disconnect();
+        await pool.end();
         process.exit(1);
     }
 };

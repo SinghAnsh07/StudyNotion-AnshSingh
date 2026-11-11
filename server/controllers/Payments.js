@@ -46,7 +46,7 @@ exports.capturePayment = async (req, res) => {
 		}
 	}
 
-	const currency = "INR";
+	const currency = "KSh";
 	const options = {
 		amount: Math.round(totalAmount * 100),
 		currency,

@@ -11,9 +11,10 @@ import Footer from "../components/common/Footer"
 import RatingStars from "../components/common/RatingStars"
 import CourseAccordionBar from "../components/core/Course/CourseAccordionBar"
 import CourseDetailsCard from "../components/core/Course/CourseDetailsCard"
+import MpesaPaymentModal from "../components/core/Course/MpesaPaymentModal"
 import { formatDate } from "../services/formatDate"
 import { fetchCourseDetails } from "../services/operations/courseDetailsAPI"
-import { buyCourse } from "../services/operations/studentFeaturesAPI"
+import { buyCourseWithMpesa } from "../services/operations/mpesaPayment"
 import GetAvgRating from "../utils/avgRating"
 import Error from "./Error"
 
@@ -27,17 +28,16 @@ function CourseDetails() {
 
   // Getting courseId from url parameter
   const { courseId } = useParams()
-  // console.log(`course id: ${courseId}`)
 
-  // Declear a state to save the course details
+  // State to save course details and modals
   const [response, setResponse] = useState(null)
   const [confirmationModal, setConfirmationModal] = useState(null)
+  const [paymentModal, setPaymentModal] = useState(false)
+
   useEffect(() => {
-    // Calling fetchCourseDetails fucntion to fetch the details
     ;(async () => {
       try {
         const res = await fetchCourseDetails(courseId)
-        // console.log("course details res: ", res)
         setResponse(res)
       } catch (error) {
         console.log("Could not fetch Course Details")
@@ -45,21 +45,15 @@ function CourseDetails() {
     })()
   }, [courseId])
 
-  // console.log("response: ", response)
-
   // Calculating Avg Review count
   const [avgReviewCount, setAvgReviewCount] = useState(0)
   useEffect(() => {
     const count = GetAvgRating(response?.data?.courseDetails.ratingAndReviews)
     setAvgReviewCount(count)
   }, [response])
-  // console.log("avgReviewCount: ", avgReviewCount)
 
-  // // Collapse all
-  // const [collapse, setCollapse] = useState("")
   const [isActive, setIsActive] = useState(Array(0))
   const handleActive = (id) => {
-    // console.log("called", id)
     setIsActive(
       !isActive.includes(id)
         ? isActive.concat([id])
@@ -102,22 +96,35 @@ function CourseDetails() {
   } = response.data?.courseDetails
 
   const handleBuyCourse = () => {
-    if (token) {
-      buyCourse(token, [courseId], user, navigate, dispatch)
+    if (!token) {
+      setConfirmationModal({
+        text1: "You are not logged in!",
+        text2: "Please login to Purchase Course.",
+        btn1Text: "Login",
+        btn2Text: "Cancel",
+        btn1Handler: () => navigate("/login"),
+        btn2Handler: () => setConfirmationModal(null),
+      })
       return
     }
-    setConfirmationModal({
-      text1: "You are not logged in!",
-      text2: "Please login to Purchase Course.",
-      btn1Text: "Login",
-      btn2Text: "Cancel",
-      btn1Handler: () => navigate("/login"),
-      btn2Handler: () => setConfirmationModal(null),
-    })
+
+    // Open custom M-Pesa Payment Modal UI
+    setPaymentModal(true)
+  }
+
+  const handleMpesaCheckout = async (phoneNumber) => {
+    const paymentData = {
+      userId: user?.id,
+      courseId: courseId,
+      phoneNumber: phoneNumber,
+      amount: price,
+    }
+
+    await buyCourseWithMpesa(token, paymentData, navigate, dispatch)
+    setPaymentModal(false)
   }
 
   if (paymentLoading) {
-    // console.log("payment loading")
     return (
       <div className="grid min-h-[calc(100vh-3.5rem)] place-items-center">
         <div className="spinner"></div>
@@ -161,18 +168,16 @@ function CourseDetails() {
               </div>
               <div className="flex flex-wrap gap-5 text-lg">
                 <p className="flex items-center gap-2">
-                  {" "}
                   <BiInfoCircle /> Created at {formatDate(createdAt)}
                 </p>
                 <p className="flex items-center gap-2">
-                  {" "}
                   <HiOutlineGlobeAlt /> English
                 </p>
               </div>
             </div>
             <div className="flex w-full flex-col gap-4 border-y border-y-richblack-500 py-4 lg:hidden">
               <p className="space-x-3 pb-4 text-3xl font-semibold text-richblack-5">
-                Rs. {price}
+                Ksh. {price}
               </p>
               <button className="yellowButton" onClick={handleBuyCourse}>
                 Buy Now
@@ -181,7 +186,7 @@ function CourseDetails() {
             </div>
           </div>
           {/* Courses Card */}
-          <div className="right-[1rem] top-[60px] mx-auto hidden min-h-[600px] w-1/3 max-w-[410px] translate-y-24 md:translate-y-0 lg:absolute  lg:block">
+          <div className="right-[1rem] top-[60px] mx-auto hidden min-h-[600px] w-1/3 max-w-[410px] translate-y-24 md:translate-y-0 lg:absolute lg:block">
             <CourseDetailsCard
               course={response?.data?.courseDetails}
               setConfirmationModal={setConfirmationModal}
@@ -261,6 +266,13 @@ function CourseDetails() {
       </div>
       <Footer />
       {confirmationModal && <ConfirmationModal modalData={confirmationModal} />}
+      {paymentModal && (
+        <MpesaPaymentModal
+          course={response?.data?.courseDetails}
+          onClose={() => setPaymentModal(false)}
+          onConfirm={handleMpesaCheckout}
+        />
+      )}
     </>
   )
 }

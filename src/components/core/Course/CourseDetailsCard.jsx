@@ -65,10 +65,9 @@ function CourseDetailsCard({ course, setConfirmationModal, handleBuyCourse }) {
           alt={course?.courseName}
           className="max-h-[300px] min-h-[180px] w-[400px] overflow-hidden rounded-2xl object-cover md:max-w-full"
         />
-
         <div className="px-4">
           <div className="space-x-3 pb-4 text-3xl font-semibold">
-            Rs. {CurrentPrice}
+            Ksh. {CurrentPrice}
           </div>
           <div className="flex flex-col gap-4">
             <button

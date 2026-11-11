@@ -17,6 +17,13 @@ enum CourseStatus {
   Published
 }
 
+enum PaymentStatus {
+  Pending
+  Completed
+  Failed
+  Cancelled
+}
+
 // ─── USER & PROFILE ──────────────────────────────────────────
 model User {
   id                   String            @id @default(uuid())
@@ -34,9 +41,10 @@ model User {
   // 1:1 relation to profile
   profile              Profile?
   
-  // Relations to courses
+  // Relations to courses & payments
   createdCourses       Course[]          @relation("InstructorCourses")
   enrolledCourses      Course[]          @relation("EnrolledStudents")
+  payments             Payment[]
   
   courseProgress       CourseProgress[]
   ratingsAndReviews    RatingAndReview[]
@@ -77,6 +85,7 @@ model Course {
   sections          Section[]
   ratingsAndReviews RatingAndReview[]
   enrolledStudents  User[]            @relation("EnrolledStudents")
+  payments          Payment[]
   courseProgress    CourseProgress[]
 
   createdAt         DateTime          @default(now())
@@ -98,16 +107,37 @@ model Section {
 }
 
 model SubSection {
-  id           String           @id @default(uuid())
-  title        String?
-  timeDuration String?
-  description  String?
-  videoUrl     String?          // Cloudinary URL remains unchanged
+  id             String           @id @default(uuid())
+  title          String?
+  timeDuration   String?
+  description    String?
+  videoUrl       String?          // Cloudinary URL remains unchanged
   
-  sectionId    String
-  section      Section          @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  sectionId      String
+  section        Section          @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   
-  completedBy  CourseProgress[] @relation("CompletedVideos")
+  completedBy    CourseProgress[] @relation("CompletedVideos")
+}
+
+// ─── PAYMENTS ────────────────────────────────────────────────
+model Payment {
+  id                 String        @id @default(uuid())
+  checkoutRequestID  String        @unique // From Safaricom STK Push response
+  merchantRequestID  String?       // From Safaricom STK Push response
+  amount             Float
+  phoneNumber        String
+  mpesaReceiptNumber String?       @unique // Generated upon successful payment (e.g., QEH23XYZ9)
+  status             PaymentStatus @default(Pending)
+  resultDesc         String?       // Safaricom callback description message
+
+  userId             String
+  user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  courseId           String
+  course             Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 }
 
 // ─── PROGRESS & REVIEWS ───────────────────────────────────────
